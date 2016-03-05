@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,6 +16,23 @@ import (
 
 func defaultDir() string {
 	return fmt.Sprintf("%s/.fomo", os.Getenv("HOME"))
+}
+
+func runAll(hs []*hosts.Host, w io.WriteCloser, src string) error {
+	errs := make(chan error, len(hs))
+	for _, h := range hs {
+		go func() {
+			errs <- remote.Run(h, w, src)
+		}()
+	}
+
+	for i, n := 0, len(hs); i < n; i++ {
+		if err := <-errs; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // fomo script.py all - dbs
@@ -35,18 +53,12 @@ func main() {
 
 	expr := strings.Join(flag.Args()[1:], " ")
 
-	h, err := hosts.New(*flagDir).Load(expr)
+	hs, err := hosts.New(*flagDir).Load(expr)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	log.Println(h)
-
-	if err := remote.Run(&hosts.Host{
-		User: "knorton",
-		Host: "localhost",
-		Port: 22,
-	}, os.Stdout, "task.py"); err != nil {
+	if err := runAll(hs, os.Stdout, src); err != nil {
 		log.Panic(err)
 	}
 }

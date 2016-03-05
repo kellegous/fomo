@@ -164,6 +164,20 @@ func invoke(s *ssh.Client, id, src string) error {
 	return nil
 }
 
+func tearDown(s *ssh.Client, id string) error {
+	ss, err := s.NewSession()
+	if err != nil {
+		return err
+	}
+	defer ss.Close()
+
+	if len(id) == 0 {
+		return fmt.Errorf("invalid id: %s", id)
+	}
+
+	return ss.Run(fmt.Sprintf("rm -rf %s", filepath.Join(tmpDir, id)))
+}
+
 func Run(h *hosts.Host, loc io.WriteCloser, src string) error {
 	id, err := sessionId()
 	if err != nil {
@@ -193,5 +207,5 @@ func Run(h *hosts.Host, loc io.WriteCloser, src string) error {
 		return err
 	}
 
-	return nil
+	return tearDown(s, id)
 }
