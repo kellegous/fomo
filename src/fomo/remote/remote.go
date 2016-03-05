@@ -2,6 +2,7 @@ package remote
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -103,7 +104,12 @@ func setup(c *ssh.Client, id, src string) error {
 	return e
 }
 
-func invoke(s *ssh.Client, id, src string) error {
+func invoke(
+	s *ssh.Client,
+	id string,
+	h *hosts.Host,
+	loc *local.Conn,
+	src string) error {
 	nl, err := s.Listen("tcp", "localhost:0")
 	if err != nil {
 		return err
@@ -144,6 +150,20 @@ func invoke(s *ssh.Client, id, src string) error {
 		return err
 	}
 	defer nc.Close()
+
+	var n int64
+	for {
+		err := binary.Read(nc, binary.BigEndian, &n)
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		if err := loc.Submit(h, n, nc); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -188,5 +208,5 @@ func Run(h *hosts.Host, loc *local.Conn, src string) error {
 		return err
 	}
 
-	return invoke(s, id, src)
+	return invoke(s, id, h, loc, src)
 }

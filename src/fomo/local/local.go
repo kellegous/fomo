@@ -4,11 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"fomo/hosts"
 )
 
 func sockName() (string, error) {
@@ -29,11 +32,9 @@ type Conn struct {
 	d string
 }
 
-type conn struct {
-	net.Conn
-	l net.Listener
-	p *os.Process
-	d string
+func (c *Conn) Submit(h *hosts.Host, n int64, r io.Reader) error {
+	_, err := io.CopyN(c.c, r, n)
+	return err
 }
 
 func (c *Conn) Close() error {
