@@ -21,9 +21,9 @@ func defaultDir() string {
 func runAll(hs []*hosts.Host, w io.WriteCloser, src string) error {
 	errs := make(chan error, len(hs))
 	for _, h := range hs {
-		go func() {
+		go func(h *hosts.Host) {
 			errs <- remote.Run(h, w, src)
-		}()
+		}(h)
 	}
 
 	for i, n := 0, len(hs); i < n; i++ {
