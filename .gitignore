@@ -1,3 +1,4 @@
+*.pyc
 pkg
 bin
 src/golang.org

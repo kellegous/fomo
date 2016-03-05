@@ -4,9 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -24,6 +22,13 @@ func sockName() (string, error) {
 		fmt.Sprintf("fomo-%s", hex.EncodeToString(r[:]))), nil
 }
 
+type Conn struct {
+	c net.Conn
+	l net.Listener
+	p *os.Process
+	d string
+}
+
 type conn struct {
 	net.Conn
 	l net.Listener
@@ -31,21 +36,18 @@ type conn struct {
 	d string
 }
 
-func (c *conn) Close() error {
+func (c *Conn) Close() error {
 	var ea, eb, ec error
 
 	if c.p != nil {
-		log.Println("kill process")
 		ea = c.p.Kill()
 	}
 
-	if c.Conn != nil {
-		log.Println("close conn")
-		eb = c.Conn.Close()
+	if c.c != nil {
+		eb = c.c.Close()
 	}
 
 	if c.l != nil {
-		log.Println("close listener")
 		ec = c.l.Close()
 	}
 
@@ -89,14 +91,14 @@ func startProc(tmp, src, sck string) (*os.Process, error) {
 	return c.Process, nil
 }
 
-func Start(src string) (io.WriteCloser, error) {
+func Start(src string) (*Conn, error) {
 
 	tmp, err := ioutil.TempDir(os.TempDir(), "fomo-")
 	if err != nil {
 		return nil, err
 	}
 
-	c := &conn{d: tmp}
+	c := &Conn{d: tmp}
 
 	if err := unpack(tmp, "local.py"); err != nil {
 		c.Close()
@@ -123,7 +125,7 @@ func Start(src string) (io.WriteCloser, error) {
 		c.Close()
 		return nil, err
 	}
-	c.Conn = nc
+	c.c = nc
 
 	return c, nil
 }

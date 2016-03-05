@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,11 +17,11 @@ func defaultDir() string {
 	return fmt.Sprintf("%s/.fomo", os.Getenv("HOME"))
 }
 
-func runAll(hs []*hosts.Host, w io.WriteCloser, src string) error {
+func runAll(hs []*hosts.Host, loc *local.Conn, src string) error {
 	errs := make(chan error, len(hs))
 	for _, h := range hs {
 		go func(h *hosts.Host) {
-			errs <- remote.Run(h, w, src)
+			errs <- remote.Run(h, loc, src)
 		}(h)
 	}
 
@@ -58,7 +57,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	if err := runAll(hs, os.Stdout, src); err != nil {
+	if err := runAll(hs, loc, src); err != nil {
 		log.Panic(err)
 	}
 }

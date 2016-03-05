@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
-	"net"
 	"os"
 	"path/filepath"
 
 	"fomo/auth"
 	"fomo/hosts"
+	"fomo/local"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -104,19 +103,6 @@ func setup(c *ssh.Client, id, src string) error {
 	return e
 }
 
-func serve(nl net.Listener) {
-	for {
-		c, err := nl.Accept()
-		if err == io.EOF {
-			return
-		} else if err != nil {
-			log.Panic(err)
-		}
-
-		log.Println(c)
-	}
-}
-
 func invoke(s *ssh.Client, id, src string) error {
 	nl, err := s.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -142,7 +128,6 @@ func invoke(s *ssh.Client, id, src string) error {
 			filepath.Join(tmpDir, id, "remote.py"),
 			nl.Addr().String(),
 			filepath.Base(src))
-		log.Printf("Run: %s", cmd)
 
 		if err := ss.Run(cmd); err != nil {
 			cerr = err
@@ -151,7 +136,6 @@ func invoke(s *ssh.Client, id, src string) error {
 		}
 	}()
 
-	log.Println(nl.Addr().String())
 	nc, err := nl.Accept()
 	if err != nil {
 		if cerr != nil {
@@ -178,7 +162,7 @@ func tearDown(s *ssh.Client, id string) error {
 	return ss.Run(fmt.Sprintf("rm -rf %s", filepath.Join(tmpDir, id)))
 }
 
-func Run(h *hosts.Host, loc io.WriteCloser, src string) error {
+func Run(h *hosts.Host, loc *local.Conn, src string) error {
 	id, err := sessionId()
 	if err != nil {
 		return err
@@ -199,13 +183,10 @@ func Run(h *hosts.Host, loc io.WriteCloser, src string) error {
 	}
 	defer s.Close()
 
+	defer tearDown(s, id)
 	if err := setup(s, id, src); err != nil {
 		return err
 	}
 
-	if err := invoke(s, id, src); err != nil {
-		return err
-	}
-
-	return tearDown(s, id)
+	return invoke(s, id, src)
 }
