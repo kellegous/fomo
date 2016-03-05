@@ -8,8 +8,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"path/filepath"
-	"time"
 
 	"fomo/auth"
 	"fomo/hosts"
@@ -117,6 +117,53 @@ func serve(nl net.Listener) {
 	}
 }
 
+func invoke(s *ssh.Client, id, src string) error {
+	nl, err := s.Listen("tcp", "localhost:0")
+	if err != nil {
+		return err
+	}
+	defer nl.Close()
+
+	var cerr error
+
+	go func() {
+		ss, err := s.NewSession()
+		if err != nil {
+			cerr = err
+			nl.Close()
+			return
+		}
+		defer ss.Close()
+
+		ss.Stdout = os.Stdout
+		ss.Stderr = os.Stderr
+
+		cmd := fmt.Sprintf("%s %s %s",
+			filepath.Join(tmpDir, id, "remote.py"),
+			nl.Addr().String(),
+			filepath.Base(src))
+		log.Printf("Run: %s", cmd)
+
+		if err := ss.Run(cmd); err != nil {
+			cerr = err
+			nl.Close()
+			return
+		}
+	}()
+
+	log.Println(nl.Addr().String())
+	nc, err := nl.Accept()
+	if err != nil {
+		if cerr != nil {
+			return cerr
+		}
+		return err
+	}
+	defer nc.Close()
+
+	return nil
+}
+
 func Run(h *hosts.Host, loc io.WriteCloser, src string) error {
 	id, err := sessionId()
 	if err != nil {
@@ -142,16 +189,9 @@ func Run(h *hosts.Host, loc io.WriteCloser, src string) error {
 		return err
 	}
 
-	nl, err := s.Listen("tcp", "localhost:0")
-	if err != nil {
+	if err := invoke(s, id, src); err != nil {
 		return err
 	}
-
-	log.Println(nl.Addr())
-
-	go serve(nl)
-
-	time.Sleep(2 * time.Second)
 
 	return nil
 }
