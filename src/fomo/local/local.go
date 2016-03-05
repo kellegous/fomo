@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"fomo/hosts"
 )
@@ -26,13 +27,17 @@ func sockName() (string, error) {
 }
 
 type Conn struct {
-	c net.Conn
-	l net.Listener
-	p *os.Process
-	d string
+	c  net.Conn
+	l  net.Listener
+	p  *os.Process
+	d  string
+	lk sync.Mutex
 }
 
 func (c *Conn) Submit(h *hosts.Host, n int64, r io.Reader) error {
+	c.lk.Lock()
+	defer c.lk.Unlock()
+
 	_, err := io.CopyN(c.c, r, n)
 	return err
 }
