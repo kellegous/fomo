@@ -2,32 +2,51 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
-	"fomo/auth"
-
-	"golang.org/x/crypto/ssh"
+	"fomo/hosts"
+	"fomo/local"
+	"fomo/remote"
 )
 
+func defaultDir() string {
+	return fmt.Sprintf("%s/.fomo", os.Getenv("HOME"))
+}
+
+// fomo script.py all - dbs
 func main() {
-	flagUser := flag.String("user", "pi", "")
+	flagDir := flag.String("prefs", defaultDir(), "")
 	flag.Parse()
 
-	agt, err := auth.Agent()
+	src, err := filepath.Abs(flag.Arg(0))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	cfg := ssh.ClientConfig{
-		User: *flagUser,
-		Auth: []ssh.AuthMethod{agt},
-	}
-
-	c, err := ssh.Dial("tcp", "pz:22", &cfg)
+	loc, err := local.Start(src)
 	if err != nil {
 		log.Panic(err)
 	}
-	defer c.Close()
+	defer loc.Close()
 
-	log.Println(c.ClientVersion())
+	expr := strings.Join(flag.Args()[1:], " ")
+
+	h, err := hosts.New(*flagDir).Load(expr)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	log.Println(h)
+
+	if err := remote.Run(&hosts.Host{
+		User: "knorton",
+		Host: "localhost",
+		Port: 22,
+	}, os.Stdout, "task.py"); err != nil {
+		log.Panic(err)
+	}
 }
